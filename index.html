@@ -272,9 +272,10 @@ textarea{width:100%;min-height:6.5rem;padding:.55rem .65rem;border:1px solid var
   <aside class="panel people" id="people" aria-label="Alumnos">
     <h2>Alumnos</h2>
     <div class="add">
-      <input type="text" id="nameIn" placeholder="Nombre del alumno" autocomplete="off" maxlength="40" aria-label="Nombre del alumno">
+      <input type="text" id="nameIn" placeholder="Apellidos, Nombre (ej.: Baba Touissi, Marwa)" autocomplete="off" maxlength="80" aria-label="Alumno: apellidos, nombre">
       <button class="btn primary" id="btnAdd">Añadir</button>
     </div>
+    <p class="muted small" id="nameHint" style="margin:-.3rem 0 .8rem"></p>
 
     <details class="imp" id="imp">
       <summary>Pegar de Excel o importar CSV</summary>
@@ -698,11 +699,16 @@ textarea{width:100%;min-height:6.5rem;padding:.55rem .65rem;border:1px solid var
   }
 
   function addManual(){
-    var inp = $("#nameIn"), n = inp.value.replace(/\s+/g," ").trim();
-    if(!n) return;
-    var exists = S.students.some(function(s){ return s.name.toLowerCase()===n.toLowerCase(); });
-    if(exists){ toast("Ya existe «"+n+"». Añade un apellido o una inicial."); return; }
-    addNames([n]); inp.value = ""; render(); inp.focus();
+    var inp = $("#nameIn"), raw = inp.value.replace(/\s+/g," ").trim();
+    if(!raw) return;
+    var item = raw;
+    if($("#fmt").value==="apellidos"){
+      item = snObj([raw]);
+      if(!item) return;
+    }
+    var res = addNames([item]);
+    if(!res.added){ toast("Ya existe un alumno con ese nombre y apellidos."); return; }
+    inp.value = ""; render(); inp.focus();
   }
 
   /* ---------- Importación ---------- */
@@ -723,6 +729,21 @@ textarea{width:100%;min-height:6.5rem;padding:.55rem .65rem;border:1px solid var
     }
     row.push(cell); rows.push(row);
     return rows;
+  }
+
+  function snObj(r){
+    var sur, nom;
+    if(r.length===1){
+      var ci = r[0].indexOf(",");
+      if(ci>=0){ sur = r[0].slice(0,ci); nom = r[0].slice(ci+1); } else { sur = ""; nom = r[0]; }
+    }else{
+      sur = r.slice(0,-1).join(" "); nom = r[r.length-1];
+    }
+    sur = sur.replace(/\s+/g," ").trim(); nom = nom.replace(/\s+/g," ").trim();
+    if(!nom){ nom = sur; sur = ""; }
+    if(!nom) return null;
+    var w = sur ? sur.split(" ") : [];
+    return {first:nom.slice(0,40), s1:w[0]||"", s2:w[1]||"", pick:($("#compound").value==="first" ? 0 : -1)};
   }
 
   function extractNames(text, fromFile){
@@ -748,18 +769,8 @@ textarea{width:100%;min-height:6.5rem;padding:.55rem .65rem;border:1px solid var
     if($("#fmt").value==="apellidos"){
       var out = [];
       rows.forEach(function(r){
-        var sur, nom;
-        if(r.length===1){
-          var ci = r[0].indexOf(",");
-          if(ci>=0){ sur = r[0].slice(0,ci); nom = r[0].slice(ci+1); } else { sur = ""; nom = r[0]; }
-        }else{
-          sur = r.slice(0,-1).join(" "); nom = r[r.length-1];
-        }
-        sur = sur.replace(/\s+/g," ").trim(); nom = nom.replace(/\s+/g," ").trim();
-        if(!nom){ nom = sur; sur = ""; }
-        if(!nom) return;
-        var w = sur ? sur.split(" ") : [];
-        out.push({first:nom.slice(0,40), s1:w[0]||"", s2:w[1]||"", pick:($("#compound").value==="first" ? 0 : -1)});
+        var o = snObj(r);
+        if(o) out.push(o);
       });
       return out;
     }
@@ -1080,6 +1091,9 @@ textarea{width:100%;min-height:6.5rem;padding:.55rem .65rem;border:1px solid var
   function syncFmt(){
     var ap = $("#fmt").value==="apellidos";
     $("#mode").disabled = ap; $("#compound").disabled = !ap;
+    $("#nameHint").textContent = ap
+      ? "Formato: «Apellidos, Nombre». Ej.: Baba Touissi, Marwa. Solo se muestra el nombre; si se repite, se añade la inicial del primer apellido (Marwa B.)."
+      : "Se añade tal como lo escribas.";
   }
   $("#fmt").addEventListener("change",syncFmt);
   syncFmt();
